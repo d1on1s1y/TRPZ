@@ -21,5 +21,18 @@ namespace MindMapApp.Entities
         public virtual Region Region { get; set; }
 
         public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+        public Node Clone()
+        {
+            return new Node
+            {
+                Id = 0,
+                Text = this.Text + " (Копія)",
+                Color = this.Color,
+                PosX = this.PosX + 20,
+                PosY = this.PosY + 20,
+                MindMapId = this.MindMapId,
+                RegionId = this.RegionId
+            };
+        }
     }
 }
