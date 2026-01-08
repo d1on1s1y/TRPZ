@@ -37,7 +37,13 @@ namespace MindMapApp.Repositories
 
         public MindMap GetById(int id)
         {
-            return _context.MindMaps.Include(m => m.Connections).Include(m => m.Nodes).ThenInclude(n => n.Attachments).FirstOrDefault(m => m.Id == id);
+            return _context.MindMaps
+        .Include(m => m.Connections)
+        .Include(m => m.Nodes)
+            .ThenInclude(n => n.Attachments)
+        .Include(m => m.Regions)       
+            .ThenInclude(r => r.Nodes) 
+        .FirstOrDefault(m => m.Id == id);
         }
 
         public void Update(MindMap entity)

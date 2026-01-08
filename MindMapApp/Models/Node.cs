@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Net.Mail;
+using System.Windows;
 
 namespace MindMapApp.Entities
 {
@@ -21,6 +22,18 @@ namespace MindMapApp.Entities
         public virtual Region Region { get; set; }
 
         public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+
+        public void Move(double dx, double dy)
+        {
+            this.PosX += dx;
+            this.PosY += dy;
+        }
+
+        // Повертаємо прямокутник вузла (розмір 80x40 фіксований у нас)
+        public Rect GetBounds()
+        {
+            return new Rect(PosX, PosY, 80, 40);
+        }
         public Node Clone()
         {
             return new Node

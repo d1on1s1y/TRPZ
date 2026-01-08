@@ -1,13 +1,14 @@
-﻿using System;
+﻿using MindMapApp.Entities;
+using MindMapApp.Renderers;
+using MindMapApp.Repositories;
+using MindMapApp.Tools;
+using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using MindMapApp.Entities;
-using MindMapApp.Repositories;
-using MindMapApp.Tools;
 
 namespace MindMapApp
 {
@@ -16,7 +17,11 @@ namespace MindMapApp
         public MindMapRepository Repository { get; private set; }
         public MindMap CurrentMap { get; private set; }
         private IMapTool _currentTool;
+        private ILineRenderer _currentRenderer = new StraightLineRenderer();
 
+        private bool _isDragging = false;        // Чи тягнемо ми зараз щось?
+        private Point _lastMousePosition;        // Де була мишка в минулому кадрі?
+        private Node _selectedNode = null;       // Який вузол ми тягнемо?
         public MainWindow()
         {
             try
@@ -79,10 +84,47 @@ namespace MindMapApp
 
         public void DrawCurrentMap()
         {
+            if (CurrentMap == null || DrawingCanvas == null) return;
             DrawingCanvas.Children.Clear();
 
-            if (CurrentMap == null) return;
+            if (CurrentMap.Regions != null)
+            {
+                foreach (var region in CurrentMap.Regions)
+                {
+                    // Використовуємо наш метод Composite, щоб дізнатися розмір групи
+                    var bounds = region.GetBounds();
 
+                    if (bounds.IsEmpty) continue;
+
+                    var rect = new System.Windows.Shapes.Rectangle
+                    {
+                        Width = bounds.Width,
+                        Height = bounds.Height,
+                        Stroke = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom(region.BorderColor),
+                        StrokeThickness = 2,
+                        StrokeDashArray = new DoubleCollection { 4, 2 }, // Пунктир
+                        Fill = System.Windows.Media.Brushes.Transparent,
+                        IsHitTestVisible = false // Щоб крізь рамку можна було клікати по канвасу
+                    };
+
+                    Canvas.SetLeft(rect, bounds.X);
+                    Canvas.SetTop(rect, bounds.Y);
+
+                    // Додаємо підпис регіону (опціонально)
+                    var label = new TextBlock
+                    {
+                        Text = region.Title,
+                        Foreground = System.Windows.Media.Brushes.Gray,
+                        FontSize = 10,
+                        FontWeight = FontWeights.Bold
+                    };
+                    Canvas.SetLeft(label, bounds.X);
+                    Canvas.SetTop(label, bounds.Y - 15); // Трохи вище рамки
+
+                    DrawingCanvas.Children.Add(rect);
+                    DrawingCanvas.Children.Add(label);
+                }
+            }
             if (CurrentMap.Connections != null)
             {
                 foreach (var conn in CurrentMap.Connections)
@@ -92,16 +134,9 @@ namespace MindMapApp
 
                     if (fromNode != null && toNode != null)
                     {
-                        var line = new System.Windows.Shapes.Line
-                        {
-                            X1 = fromNode.PosX + 40,
-                            Y1 = fromNode.PosY + 20,
-                            X2 = toNode.PosX + 40,
-                            Y2 = toNode.PosY + 20,
-                            Stroke = System.Windows.Media.Brushes.Gray,
-                            StrokeThickness = 2
-                        };
-                        DrawingCanvas.Children.Add(line);
+                        Point startPoint = new Point(fromNode.PosX + 40, fromNode.PosY + 20);
+                        Point endPoint = new Point(toNode.PosX + 40, toNode.PosY + 20);
+                        _currentRenderer.Draw(DrawingCanvas, startPoint, endPoint, Brushes.Gray);
                     }
                 }
             }
@@ -119,19 +154,15 @@ namespace MindMapApp
                         StrokeThickness = 1
                     };
 
-                    // --- ЛОГІКА ІНДИКАТОРА ---
+                    
                     string displayText = node.Text;
-
-                    // Перевіряємо, чи є вкладення (і чи список не null)
                     if (node.Attachments != null && node.Attachments.Count > 0)
                     {
                         displayText = "📎 " + displayText;
                     }
-                    // -------------------------
-
                     var textBlock = new TextBlock
                     {
-                        Text = displayText, // Використовуємо змінну з іконкою
+                        Text = displayText, 
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Center,
                         TextTrimming = TextTrimming.CharacterEllipsis,
@@ -139,6 +170,7 @@ namespace MindMapApp
                     };
 
                     var grid = new Grid { Width = 80, Height = 40, Cursor = Cursors.Hand };
+                    grid.DataContext = node;
                     grid.Children.Add(ellipse);
                     grid.Children.Add(textBlock);
 
@@ -188,6 +220,25 @@ namespace MindMapApp
                 }
             }
         }
+        private void LineStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (LineStyleComboBox == null) return;
+
+            switch (LineStyleComboBox.SelectedIndex)
+            {
+                case 0:
+                    _currentRenderer = new StraightLineRenderer();
+                    break;
+                case 1:
+                    _currentRenderer = new BezierLineRenderer();
+                    break;
+                case 2:
+                    _currentRenderer = new OrthogonalLineRenderer();
+                    break;
+            }
+
+            DrawCurrentMap();
+        }
         // методи для патерну Стратегія
         private void SetTool(IMapTool tool, Button activeButton)
         {
@@ -219,6 +270,64 @@ namespace MindMapApp
         private void Canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _currentTool.HandleClick(this, null);
+        }
+
+        private void DrawingCanvas_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            // Перевіряємо, що це саме СЕРЕДНЯ кнопка (коліщатко)
+            if (e.ChangedButton == MouseButton.Middle && e.ButtonState == MouseButtonState.Pressed)
+            {
+                if (e.OriginalSource is FrameworkElement element && element.DataContext is Node node)
+                {
+                    _isDragging = true;
+                    _selectedNode = node;
+                    _lastMousePosition = e.GetPosition(DrawingCanvas);
+
+                    DrawingCanvas.CaptureMouse();
+                    e.Handled = true;
+                }
+            }
+        }
+        private void DrawingCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_isDragging && _selectedNode != null)
+            {
+                // Перевіряємо, чи затиснуте коліщатко
+                if (e.MiddleButton == MouseButtonState.Pressed)
+                {
+                    Point currentPoint = e.GetPosition(DrawingCanvas);
+                    double dx = currentPoint.X - _lastMousePosition.X;
+                    double dy = currentPoint.Y - _lastMousePosition.Y;
+
+                    // === COMPOSITE LOGIC ===
+                    if (_selectedNode.Region != null)
+                    {
+                        _selectedNode.Region.Move(dx, dy); // Рухаємо групу
+                    }
+                    else
+                    {
+                        _selectedNode.Move(dx, dy); // Рухаємо вузол
+                    }
+                    // =======================
+
+                    _lastMousePosition = currentPoint;
+                    DrawCurrentMap();
+                }
+            }
+        }
+        private void DrawingCanvas_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            // Реагуємо тільки на відпускання середньої кнопки
+            if (e.ChangedButton == MouseButton.Middle)
+            {
+                if (_isDragging)
+                {
+                    _isDragging = false;
+                    _selectedNode = null;
+                    DrawingCanvas.ReleaseMouseCapture();
+                    Repository.Update(CurrentMap);
+                }
+            }
         }
     }
 }

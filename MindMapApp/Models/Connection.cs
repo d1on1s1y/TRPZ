@@ -4,7 +4,7 @@
     {
         public int Id { get; set; }
 
-        public string LineStyle { get; set; } = "Solid"; // "Solid", "Dashed" і т.д.
+        public string LineStyle { get; set; } = "Solid";
         public double Thickness { get; set; } = 1.0;
 
         public int MindMapId { get; set; }
