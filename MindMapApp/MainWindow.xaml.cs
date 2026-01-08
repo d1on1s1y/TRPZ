@@ -19,9 +19,9 @@ namespace MindMapApp
         private IMapTool _currentTool;
         private ILineRenderer _currentRenderer = new StraightLineRenderer();
 
-        private bool _isDragging = false;        // Чи тягнемо ми зараз щось?
-        private Point _lastMousePosition;        // Де була мишка в минулому кадрі?
-        private Node _selectedNode = null;       // Який вузол ми тягнемо?
+        private bool _isDragging = false;       
+        private Point _lastMousePosition;        
+        private Node _selectedNode = null;       
         public MainWindow()
         {
             try
@@ -54,14 +54,20 @@ namespace MindMapApp
         }
         private void MapsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (MapsListBox.SelectedItem is MindMap selectedMap)
+            if (MapsListBox.SelectedItem is MindMap tempMap)
             {
-                CurrentMap = Repository.GetById(selectedMap.Id);
+                int mapId = tempMap.Id;
 
-                CurrentMapLabel.Text = CurrentMap.Title;
-                BtnAddNode.IsEnabled = true;
-                ToolsPanel.IsEnabled = true;
-                DrawCurrentMap();
+                Repository = new MindMapRepository();
+                CurrentMap = Repository.GetById(mapId);
+                if (CurrentMap != null)
+                {
+                    CurrentMapLabel.Text = CurrentMap.Title;
+                    BtnAddNode.IsEnabled = true;
+                    ToolsPanel.IsEnabled = true;
+
+                    DrawCurrentMap();
+                }
             }
         }
         private void AddNode_Click(object sender, RoutedEventArgs e)
@@ -90,8 +96,7 @@ namespace MindMapApp
             if (CurrentMap.Regions != null)
             {
                 foreach (var region in CurrentMap.Regions)
-                {
-                    // Використовуємо наш метод Composite, щоб дізнатися розмір групи
+                { 
                     var bounds = region.GetBounds();
 
                     if (bounds.IsEmpty) continue;
@@ -102,15 +107,15 @@ namespace MindMapApp
                         Height = bounds.Height,
                         Stroke = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFrom(region.BorderColor),
                         StrokeThickness = 2,
-                        StrokeDashArray = new DoubleCollection { 4, 2 }, // Пунктир
+                        StrokeDashArray = new DoubleCollection { 4, 2 },
                         Fill = System.Windows.Media.Brushes.Transparent,
-                        IsHitTestVisible = false // Щоб крізь рамку можна було клікати по канвасу
+                        IsHitTestVisible = false 
                     };
 
                     Canvas.SetLeft(rect, bounds.X);
                     Canvas.SetTop(rect, bounds.Y);
 
-                    // Додаємо підпис регіону (опціонально)
+                    
                     var label = new TextBlock
                     {
                         Text = region.Title,
@@ -119,7 +124,7 @@ namespace MindMapApp
                         FontWeight = FontWeights.Bold
                     };
                     Canvas.SetLeft(label, bounds.X);
-                    Canvas.SetTop(label, bounds.Y - 15); // Трохи вище рамки
+                    Canvas.SetTop(label, bounds.Y - 15); 
 
                     DrawingCanvas.Children.Add(rect);
                     DrawingCanvas.Children.Add(label);
@@ -273,8 +278,7 @@ namespace MindMapApp
         }
 
         private void DrawingCanvas_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            // Перевіряємо, що це саме СЕРЕДНЯ кнопка (коліщатко)
+        {   
             if (e.ChangedButton == MouseButton.Middle && e.ButtonState == MouseButtonState.Pressed)
             {
                 if (e.OriginalSource is FrameworkElement element && element.DataContext is Node node)
@@ -292,24 +296,19 @@ namespace MindMapApp
         {
             if (_isDragging && _selectedNode != null)
             {
-                // Перевіряємо, чи затиснуте коліщатко
                 if (e.MiddleButton == MouseButtonState.Pressed)
                 {
                     Point currentPoint = e.GetPosition(DrawingCanvas);
                     double dx = currentPoint.X - _lastMousePosition.X;
                     double dy = currentPoint.Y - _lastMousePosition.Y;
-
-                    // === COMPOSITE LOGIC ===
                     if (_selectedNode.Region != null)
                     {
-                        _selectedNode.Region.Move(dx, dy); // Рухаємо групу
+                        _selectedNode.Region.Move(dx, dy);
                     }
                     else
                     {
-                        _selectedNode.Move(dx, dy); // Рухаємо вузол
+                        _selectedNode.Move(dx, dy);
                     }
-                    // =======================
-
                     _lastMousePosition = currentPoint;
                     DrawCurrentMap();
                 }
@@ -317,7 +316,6 @@ namespace MindMapApp
         }
         private void DrawingCanvas_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            // Реагуємо тільки на відпускання середньої кнопки
             if (e.ChangedButton == MouseButton.Middle)
             {
                 if (_isDragging)
@@ -328,6 +326,28 @@ namespace MindMapApp
                     Repository.Update(CurrentMap);
                 }
             }
+        }
+        private void BtnCreateRegion_Click(object sender, RoutedEventArgs e)
+        {
+            if (CurrentMap == null) return;
+            var freeNodes = CurrentMap.Nodes.Where(n => n.RegionId == null).ToList();
+
+            if (freeNodes.Count < 2)
+            {
+                MessageBox.Show("Треба хоча б 2 вільних вузли для створення групи!");
+                return;
+            }
+            var newRegion = new MindMapApp.Entities.Region
+            {
+                Title = "Нова група",
+                BorderColor = "#0000FF", 
+                MindMapId = CurrentMap.Id,
+                Nodes = freeNodes
+            };
+            CurrentMap.Regions.Add(newRegion);
+            Repository.Update(CurrentMap);
+            CurrentMap = Repository.GetById(CurrentMap.Id);
+            DrawCurrentMap();
         }
     }
 }

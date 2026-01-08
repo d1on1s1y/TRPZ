@@ -29,7 +29,7 @@ namespace MindMapApp.Entities
             this.PosY += dy;
         }
 
-        // Повертаємо прямокутник вузла (розмір 80x40 фіксований у нас)
+     
         public Rect GetBounds()
         {
             return new Rect(PosX, PosY, 80, 40);
