@@ -66,6 +66,11 @@
                             <ComboBoxItem Content="Крива"/>
                             <ComboBoxItem Content="Ламана "/>
                         </ComboBox>
+                        <Button x:Name="BtnCloudLogin" 
+        Content=" Login" 
+        Width="100" Height="30" 
+        Margin="10,0,0,0"
+        Click="BtnCloudLogin_Click"/>
                     </StackPanel>
                 </Border>
 

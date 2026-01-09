@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="../MindMapAppAPI/MindMapAppAPI.csproj" Id="7dd9aafc-c359-4cbc-b61e-1748702850cb" />
   <Project Path="MindMapApp.csproj" />
 </Solution>

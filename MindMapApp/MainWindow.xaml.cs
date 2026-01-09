@@ -9,6 +9,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 
 namespace MindMapApp
 {
@@ -349,5 +352,45 @@ namespace MindMapApp
             CurrentMap = Repository.GetById(CurrentMap.Id);
             DrawCurrentMap();
         }
+        private async void BtnCloudLogin_Click(object sender, RoutedEventArgs e)
+        {
+            string apiUrl = "https://localhost:7225/api/auth/login";
+
+            // хардкод логіна і пароля для наочності
+            string rawLogin = "admin";
+            string rawPassword = "12345"; 
+
+            try
+            {
+                var payload = new
+                {
+                    EncryptedLogin = CryptoHelper.Encrypt(rawLogin),
+                    EncryptedPassword = CryptoHelper.Encrypt(rawPassword)
+                };
+                
+                string json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using (var client = new HttpClient())
+                {
+                    var response = await client.PostAsync(apiUrl, content);
+                    
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var responseString = await response.Content.ReadAsStringAsync();
+                        MessageBox.Show($"Успішна авторизація!\nВідповідь сервера:\n{responseString}", "SOA Client");
+                        BtnCloudLogin.Background = System.Windows.Media.Brushes.LightGreen;
+                    }
+                    else
+                    {
+                        MessageBox.Show($"Помилка: {response.StatusCode}", "SOA Client");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Не вдалося з'єднатися з сервером:\n{ex.Message}\n\n", "Помилка");
+            }
+        }
     }
+
 }
